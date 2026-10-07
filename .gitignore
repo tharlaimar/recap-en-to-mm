@@ -1,0 +1,17 @@
+# your own key and settings - never commit
+.env
+config.json
+
+# work folders made by the tool
+jobs/
+logs/
+setup_check.log
+
+# FFmpeg binaries you may put next to RUN.bat
+ffmpeg/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv*/
