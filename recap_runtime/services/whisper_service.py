@@ -385,7 +385,19 @@ class WhisperTimestampService:
         print(f"🎙️ Local Whisper timestamp transcription: {path.name}")
 
         if self._active_backend == "faster-whisper":
-            result = self._transcribe_faster(str(path), vad_filter=True, media_duration=media_duration)
+            try:
+                result = self._transcribe_faster(str(path), vad_filter=True, media_duration=media_duration)
+            except RuntimeError as exc:
+                # An NVIDIA GPU without the CUDA 12 libraries (cublas64_12.dll / cuDNN) loads the
+                # model but fails on the first audio: finish on the CPU instead of stopping.
+                text = str(exc).lower()
+                if self.device == "cpu" or not any(word in text for word in ("cublas", "cudnn", "cuda", ".dll")):
+                    raise
+                print(f"⚠️ GPU Whisper failed ({exc}); using the CPU instead (slower)")
+                self._model = None
+                self.device, self.compute_type = "cpu", "int8"
+                self._ensure_model()
+                result = self._transcribe_faster(str(path), vad_filter=True, media_duration=media_duration)
             if not result.get("segments"):
                 print("⚠️ Whisper VAD=ON returned 0 segments — retrying SAME source once with VAD=OFF...")
                 result = self._transcribe_faster(str(path), vad_filter=False, media_duration=media_duration)

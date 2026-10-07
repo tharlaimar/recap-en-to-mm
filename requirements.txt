@@ -12,6 +12,7 @@ google-genai==2.25.0        # Gemini translation
 python-dotenv==1.0.1        # reads the Gemini key from .env
 edge-tts>=7.2.8             # Myanmar Edge TTS voices (left unpinned upward: Microsoft changes the service now and then)
 faster-whisper==1.2.1       # local Whisper for the English narration (NVIDIA GPU when available, otherwise CPU)
+av==18.0.0                  # audio reader of faster-whisper 1.2.1; av 19 removed open(metadata_errors=) and broke it
 numpy==2.2.6                # Short pauses + audio helpers
 pillow==12.3.0              # overlays, preview
 requests==2.32.3
