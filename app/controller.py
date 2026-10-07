@@ -1000,6 +1000,14 @@ class App(tk.Tk):
             raise ValueError("Gemini .env path မမှန်ပါ။ Gemini .env မှာ Browse နှိပ်ပြီး GEMINI_API_KEY ပါတဲ့ .env ဖိုင်ကိုရွေးပါ။")
         if voice not in EDGE_VOICES:
             raise ValueError("Edge TTS Voice ကိုရွေးပါ။")
+        for tool in ("ffmpeg", "ffprobe"):
+            if not Path(_tool_path(self.cfg, tool)).is_file():  # otherwise the job dies with "[WinError 2]"
+                raise ValueError(
+                    f"{tool}.exe မတွေ့ပါ — FFmpeg မသွင်းရသေးပါ။\n\n"
+                    "INSTALL_REQUIREMENTS.bat ကို ပြန် run ပါ။ FFmpeg ကို ဒီ tool ရဲ့ ffmpeg folder ထဲ အလိုလို ထည့်ပေးပါမယ်။\n"
+                    "(သို့) https://www.gyan.dev/ffmpeg/builds/ ကနေ download လုပ်ပြီး ffmpeg.exe နဲ့ ffprobe.exe ကို "
+                    "RUN.bat ဘေးက ffmpeg folder ထဲ ထည့်ပါ။"
+                )
         runtime_root = ROOT_DIR / "recap_runtime"
         for rel in ("services/whisper_service.py", "services/ai_service.py"):
             if not (runtime_root / rel).is_file():

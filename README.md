@@ -31,7 +31,7 @@ Narrator only · Whisper + Gemini · Microsoft Edge TTS (Myanmar) · Smart Sync
 |---|---|
 | Windows | 10 / 11 (64-bit) |
 | Python | **3.12, 64-bit** — [python.org](https://www.python.org/downloads/) ကနေ သွင်းပါ။ "Add python.exe to PATH" နဲ့ "tcl/tk" ကို အမှန်ခြစ်ပါ |
-| FFmpeg | `ffmpeg.exe` + `ffprobe.exe` ([gyan.dev builds](https://www.gyan.dev/ffmpeg/builds/)) |
+| FFmpeg | `ffmpeg.exe` + `ffprobe.exe` — မရှိရင် `INSTALL_REQUIREMENTS.bat` က အလိုလို download လုပ်ပေးတယ် ([gyan.dev builds](https://www.gyan.dev/ffmpeg/builds/)) |
 | Gemini API key | အခမဲ့ ရတယ် — [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | Internet | Gemini နဲ့ Edge TTS အတွက် |
 | NVIDIA GPU | မဖြစ်မနေ မလိုဘူး။ ရှိရင် Whisper နဲ့ video render ပိုမြန်တယ် (NVENC)။ မရှိရင် CPU နဲ့ အလိုလို လုပ်တယ် |
@@ -40,12 +40,11 @@ Narrator only · Whisper + Gemini · Microsoft Edge TTS (Myanmar) · Smart Sync
 
 1. ဒီ repo ကို download လုပ်ပါ (**Code → Download ZIP** ပြီးရင် ဖြည်ပါ၊ သို့မဟုတ် `git clone`)။
 2. Python 3.12 ကို သွင်းပါ (အပေါ်က ဇယားကို ကြည့်ပါ)။
-3. FFmpeg ကို အောက်ပါ နေရာ ၃ ခုထဲက တစ်ခုမှာ ထားပါ:
-   - PATH ထဲ
-   - `C:\ffmpeg\bin\`
-   - ဒီ folder ထဲမှာ `ffmpeg` ဆိုတဲ့ folder တစ်ခုလုပ်ပြီး အဲ့ထဲ (`ffmpeg\ffmpeg.exe`, `ffmpeg\ffprobe.exe`)
-4. **`INSTALL_REQUIREMENTS.bat`** ကို double-click နှိပ်ပါ။ Python package တွေနဲ့ title စာရေးဖို့ လိုတဲ့ Chromium ကို သွင်းပေးပါမယ်။
-5. **`.env.example`** ကို **`.env`** လို့ copy ကူးပါ။ ပြီးရင် ဖွင့်ပြီး key ထည့်ပါ:
+3. **`INSTALL_REQUIREMENTS.bat`** ကို double-click နှိပ်ပါ။ အောက်ပါတွေကို သွင်းပေးပါမယ်:
+   - Python package တွေ
+   - Title စာရေးဖို့ လိုတဲ့ Chromium
+   - **FFmpeg** — စက်ထဲမှာ မရှိရင် (~100 MB) download လုပ်ပြီး ဒီ folder ထဲက `ffmpeg\` ထဲ ထည့်ပေးပါမယ်။ PATH ထဲ (သို့) `C:\ffmpeg\bin\` မှာ ရှိပြီးသားဆိုရင် အဲ့ဒါကိုပဲ သုံးပါတယ်။
+4. **`.env.example`** ကို **`.env`** လို့ copy ကူးပါ။ ပြီးရင် ဖွင့်ပြီး key ထည့်ပါ:
    ```ini
    GEMINI_API_KEY=ကိုယ့်_key
    ```
@@ -119,7 +118,7 @@ Tool ဖွင့်ပြီး START နှိပ်လိုက်ရင် `
 | `open() got an unexpected keyword argument 'metadata_errors'` | `av` version အသစ် (19) ကြောင့်ပါ။ Repo အသစ်ကို ပြန် download လုပ်ပြီး `INSTALL_REQUIREMENTS.bat` ကို ပြန် run ပါ (`av==18.0.0` ကို သွင်းပေးပါမယ်)။ |
 | Log မှာ `GPU Whisper failed … using the CPU instead` | NVIDIA GPU ရှိပေမဲ့ CUDA 12 library (cuBLAS/cuDNN) မရှိလို့ CPU နဲ့ ဆက်လုပ်တာပါ။ အလုပ်ပြီးပါတယ်၊ နည်းနည်းပဲ ပိုကြာပါတယ်။ |
 | Edge TTS `NoAudioReceived` | Internet ကို စစ်ပါ။ Tool က တိုက်ရိုက် ၂ ကြိမ်၊ system proxy နဲ့ ၂ ကြိမ် ပြန်စမ်းပါတယ်။ |
-| `ffmpeg` / `ffprobe` မတွေ့ | ထည့်သွင်းနည်း အဆင့် ၃ ကို ကြည့်ပါ (သို့) `config.json` မှာ `ffmpeg_path` / `ffprobe_path` ထည့်ပါ။ |
+| `[WinError 2] The system cannot find the file specified` (သို့) `ffmpeg.exe မတွေ့ပါ` (Preview မှာ `00:00 / 00:00`) | FFmpeg မရှိလို့ပါ။ `INSTALL_REQUIREMENTS.bat` ကို ပြန် run ပါ (FFmpeg ကို `ffmpeg\` ထဲ ထည့်ပေးပါမယ်)။ (သို့) gyan.dev ကနေ download လုပ်ပြီး `ffmpeg.exe`၊ `ffprobe.exe` ကို `RUN.bat` ဘေးက `ffmpeg` folder ထဲ ထည့်ပါ။ |
 | Title မြန်မာစာ မပေါ်ဘူး | `py -3.12 -m playwright install chromium` ကို run ပါ။ ဖောင့်ကို `RECAP_MM_FONT` (environment variable) (သို့) `title_font_path` နဲ့ ပြောင်းလို့ရပါတယ်။ |
 | Log မှာ `⚠️ ID 00012: removed letters of another script` | Gemini က မြန်မာစာထဲ တခြားဘာသာ စာလုံး ထည့်ခဲ့လို့ ဖယ်ထားတာပါ။ အဲ့စာကြောင်းကို `timestamp_translations.json` ထဲမှာ ကြည့်ပါ။ |
 
@@ -196,7 +195,9 @@ optional (without the CUDA 12 libraries Whisper falls back to the CPU by itself)
 
 ### Install
 1. Download the repo (Code → Download ZIP) and unzip it.
-2. Run **`INSTALL_REQUIREMENTS.bat`** (pip packages + Chromium for the Myanmar title renderer).
+2. Run **`INSTALL_REQUIREMENTS.bat`** (pip packages, Chromium for the Myanmar title renderer, and
+   FFmpeg: when it is not on PATH or in `C:\ffmpeg\bin`, about 100 MB is downloaded into `ffmpeg\`).
+   `[WinError 2] The system cannot find the file specified` means FFmpeg is missing — run it again.
 3. Copy **`.env.example`** to **`.env`** and set `GEMINI_API_KEY=`. More keys
    (`GEMINI_IMAGE_PROJECT_1_KEY`, `GEMINI_IMAGE_PROJECT_2_KEY`, …) are used in turn when one is used
    up; after all keys the next model is tried
