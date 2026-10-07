@@ -131,6 +131,7 @@ Tool ဖွင့်ပြီး START နှိပ်လိုက်ရင် `
 | `key pool exhausted` / 429 | ဒီနေ့ ကန့်သတ်ချက် ပြည့်သွားလို့ပါ။ Key ထပ်ထည့်ပါ (သို့) နောက်နေ့ **START / RESUME** နှိပ်ပါ။ |
 | `open() got an unexpected keyword argument 'metadata_errors'` | `av` version အသစ် (19) ကြောင့်ပါ။ Repo အသစ်ကို ပြန် download လုပ်ပြီး `INSTALL_REQUIREMENTS.bat` ကို ပြန် run ပါ (`av==18.0.0` ကို သွင်းပေးပါမယ်)။ |
 | Log မှာ `GPU Whisper failed … using the CPU instead` | NVIDIA GPU ရှိပေမဲ့ CUDA 12 library (cuBLAS/cuDNN) မရှိလို့ CPU နဲ့ ဆက်လုပ်တာပါ။ အလုပ်ပြီးပါတယ်၊ နည်းနည်းပဲ ပိုကြာပါတယ်။ |
+| `You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN…` ပြပြီး ရပ်နေသလို ဖြစ်နေတယ် | HF token **မလိုပါဘူး**။ Warning သက်သက်ပါ။ ပထမဆုံးအကြိမ်မှာ Whisper model (~460 MB) ကို download လုပ်နေတာပါ။ Log မှာ `⬇️ Whisper model: … MB downloaded` လို့ ၅ စက္ကန့်တစ်ခါ ပြပါတယ်။ တစ်ခါပဲ download လုပ်ရပါတယ်။ huggingface.co မဖွင့်ရတဲ့ စက်ဆိုရင် VPN သုံးပါ (သို့) `.env` ထဲမှာ `HF_ENDPOINT=https://hf-mirror.com` ထည့်ပါ။ |
 | Edge TTS `NoAudioReceived` | Internet ကို စစ်ပါ။ Tool က တိုက်ရိုက် ၂ ကြိမ်၊ system proxy နဲ့ ၂ ကြိမ် ပြန်စမ်းပါတယ်။ |
 | `[WinError 2] The system cannot find the file specified` (သို့) `ffmpeg.exe မတွေ့ပါ` (Preview မှာ `00:00 / 00:00`) | FFmpeg မရှိလို့ပါ။ `INSTALL_REQUIREMENTS.bat` ကို ပြန် run ပါ (FFmpeg ကို `ffmpeg\` ထဲ ထည့်ပေးပါမယ်)။ (သို့) gyan.dev ကနေ download လုပ်ပြီး `ffmpeg.exe`၊ `ffprobe.exe` ကို `RUN.bat` ဘေးက `ffmpeg` folder ထဲ ထည့်ပါ။ |
 | Title မြန်မာစာ မပေါ်ဘူး | `py -3.12 -m playwright install chromium` ကို run ပါ။ ဖောင့်ကို `RECAP_MM_FONT` (environment variable) (သို့) `title_font_path` နဲ့ ပြောင်းလို့ရပါတယ်။ |
@@ -222,6 +223,11 @@ optional (without the CUDA 12 libraries Whisper falls back to the CPU by itself)
    `127.0.0.1:10808` is used automatically; `GEMINI_PROXY=none` forces direct).
 
 Never share or commit your `.env` (it is in `.gitignore`).
+
+The first run downloads the Whisper model (~460 MB) from huggingface.co; the log shows
+`⬇️ Whisper model: … MB downloaded`. No account or HF_TOKEN is needed — the "unauthenticated
+requests" line is only a warning. If huggingface.co does not open, use a VPN or set
+`HF_ENDPOINT=https://hf-mirror.com` in `.env`.
 
 ### Use
 Double-click **`RUN.bat`**:

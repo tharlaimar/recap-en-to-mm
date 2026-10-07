@@ -3,8 +3,13 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Optional
+
+# The Whisper model download goes through plain HTTP into the Hugging Face cache, so its size
+# can be shown while it downloads (the newer "xet" transfer gave no visible progress; same speed).
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 
 class NoUsableSpeechError(RuntimeError):
@@ -37,12 +42,71 @@ class WhisperTimestampService:
         self._model: Any = None
         self._active_backend: Optional[str] = None
 
+    def _download_model_once(self) -> None:
+        """First run on a PC: the model (~460 MB for small.en) comes from huggingface.co.
+
+        faster-whisper downloads it with its progress bar switched off, so the log looked frozen
+        after "You are sending unauthenticated requests to the HF Hub" (only a warning: no
+        account or HF_TOKEN is needed). The downloaded size is printed every 5 seconds instead.
+        """
+        try:
+            from faster_whisper.utils import _MODELS, download_model
+        except Exception:
+            return
+        repo = _MODELS.get(str(self.model_size))
+        if not repo:
+            return  # a local folder or another repo id: faster-whisper handles it
+        try:
+            download_model(str(self.model_size), local_files_only=True)
+            return  # already on this PC
+        except Exception:
+            pass
+        import threading
+
+        from huggingface_hub import constants
+
+        folder = Path(constants.HF_HUB_CACHE) / ("models--" + repo.replace("/", "--"))
+        print(
+            f"⬇️ First run only: downloading the Whisper model '{self.model_size}' (~460 MB) from huggingface.co. "
+            "No account is needed — the HF_TOKEN warning can be ignored.",
+            flush=True,
+        )
+        done = threading.Event()
+
+        def report() -> None:
+            while not done.wait(5.0):
+                files = (folder / "blobs") if (folder / "blobs").is_dir() else folder
+                size = sum(f.stat().st_size for f in files.rglob("*") if f.is_file()) if files.is_dir() else 0
+                print(f"⬇️ Whisper model: {size / 1_000_000:.0f} MB downloaded...", flush=True)
+
+        threading.Thread(target=report, daemon=True).start()
+        try:
+            for attempt in range(1, 4):  # a dropped connection is tried again; the download resumes
+                try:
+                    download_model(str(self.model_size))
+                    break
+                except Exception as exc:
+                    if attempt == 3:
+                        raise RuntimeError(
+                            f"Could not download the Whisper model from huggingface.co "
+                            f"({' '.join(str(exc).split())[:200]}). Check the internet. If huggingface.co does not "
+                            "open on this PC, use a VPN, or put HF_ENDPOINT=https://hf-mirror.com in the .env file "
+                            "and start again."
+                        ) from exc
+                    print(f"⚠️ Whisper model download interrupted ({' '.join(str(exc).split())[:120]}); "
+                          f"trying again {attempt + 1}/3...", flush=True)
+                    time.sleep(5 * attempt)
+        finally:
+            done.set()
+        print("✅ Whisper model downloaded (kept on this PC for next time)", flush=True)
+
     def _load_faster_whisper(self) -> bool:
         try:
             from faster_whisper import WhisperModel
         except Exception:
             return False
 
+        self._download_model_once()
         try:
             print(
                 f"🧠 Loading faster-whisper: model={self.model_size}, "
