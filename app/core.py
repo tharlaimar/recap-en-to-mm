@@ -424,20 +424,98 @@ def _sync_filter(
     )
 
 
-def _visual_filters(mirror_video: bool, zoom_factor: float) -> tuple[list[str], float]:
+OUTPUT_RATIOS = ("16:9", "9:16", "1:1", "Original")
+FRAME_FILLS = ("blur", "black", "crop")  # fit on a blurred copy / fit with black bars / crop to fill
+OUTPUT_LONG_SIDE = 1920
+
+
+def _even(value: float) -> int:
+    return max(2, int(round(float(value) / 2.0)) * 2)
+
+
+def probe_video_size(ffprobe: str, path: Path | str) -> tuple[int, int]:
+    """Width/height of the first video stream as ffmpeg decodes it (phone rotation applied)."""
+    result = subprocess.run(
+        [ffprobe, "-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", str(path)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {result.stderr[-1200:]}")
+    streams = (json.loads(result.stdout or "{}").get("streams") or [{}])
+    video = streams[0] if streams else {}
+    width, height = int(video.get("width") or 0), int(video.get("height") or 0)
+    rotation = 0
+    for side in video.get("side_data_list") or []:
+        if "rotation" in side:
+            try:
+                rotation = int(round(float(side["rotation"])))
+            except (TypeError, ValueError):
+                pass
+    if not rotation:
+        try:
+            rotation = int(round(float((video.get("tags") or {}).get("rotate", 0) or 0)))
+        except (TypeError, ValueError):
+            rotation = 0
+    if abs(rotation) % 180 == 90:
+        width, height = height, width
+    return width, height
+
+
+def output_canvas(ratio: str, source_w: int = 0, source_h: int = 0) -> tuple[int, int]:
+    """Final frame size: 16:9 = 1920x1080, 9:16 = 1080x1920, 1:1 = 1080x1080, Original = the
+    source shape (long side at most 1920)."""
+    if ratio == "9:16":
+        return 1080, 1920
+    if ratio == "1:1":
+        return 1080, 1080
+    if ratio == "Original" and source_w > 0 and source_h > 0:
+        scale = min(1.0, OUTPUT_LONG_SIDE / max(source_w, source_h))
+        return _even(source_w * scale), _even(source_h * scale)
+    return 1920, 1080
+
+
+def frame_layout(ratio: str, fill: str, source_w: int, source_h: int,
+                 canvas: tuple[int, int] | None = None) -> dict[str, Any]:
+    """Everything _visual_filters needs; `canvas` overrides the size (the preview draws smaller)."""
+    ratio = ratio if ratio in OUTPUT_RATIOS else "16:9"
+    cw, ch = canvas or output_canvas(ratio, source_w, source_h)
+    return {"ratio": ratio, "fill": fill if fill in FRAME_FILLS else "blur",
+            "cw": _even(cw), "ch": _even(ch), "sw": int(source_w or 0), "sh": int(source_h or 0)}
+
+
+def _visual_filters(mirror_video: bool, zoom_factor: float,
+                    layout: dict[str, Any] | None = None) -> tuple[str, float]:
+    """Flip + zoom + placement on the output frame, as one filtergraph string.
+
+    Crop (and any source already of the frame's shape) fills the frame and cuts the overflow —
+    exactly the old 16:9 behaviour. Blur / black keep the whole picture visible, centred, with a
+    blurred copy of it or black bars in the free room. Zoom always zooms the picture itself.
+    """
     zoom = max(1.0, min(float(zoom_factor), 1.25))
-    fill_w = max(1920, int(round(1920 * zoom / 2.0) * 2))
-    fill_h = max(1080, int(round(1080 * zoom / 2.0) * 2))
-    visual: list[str] = []
-    if mirror_video:
-        visual.append("hflip")
-    visual.extend([
-        f"scale={fill_w}:{fill_h}:force_original_aspect_ratio=increase",
-        "crop=1920:1080",
-        "setsar=1",
-        "format=yuv420p",
-    ])
-    return visual, zoom
+    lay = layout or {"fill": "crop", "cw": 1920, "ch": 1080, "sw": 0, "sh": 0}
+    cw, ch = int(lay["cw"]), int(lay["ch"])
+    sw, sh = int(lay.get("sw") or 0) or cw, int(lay.get("sh") or 0) or ch
+    head = "hflip," if mirror_video else ""
+    if lay.get("fill") == "crop" or abs(sw / sh - cw / ch) < 0.01:
+        fill_w, fill_h = max(cw, _even(cw * zoom)), max(ch, _even(ch * zoom))
+        return (f"{head}scale={fill_w}:{fill_h}:force_original_aspect_ratio=increase,"
+                f"crop={cw}:{ch},setsar=1,format=yuv420p"), zoom
+    scale = min(cw / sw, ch / sh)
+    pw, ph = min(cw, _even(sw * scale)), min(ch, _even(sh * scale))
+    zw, zh = max(pw, _even(pw * zoom)), max(ph, _even(ph * zoom))
+    ox, oy = _even((cw - pw) / 2.0) if cw > pw else 0, _even((ch - ph) / 2.0) if ch > ph else 0
+    picture = f"scale={zw}:{zh},crop={pw}:{ph},setsar=1"
+    if lay.get("fill") == "black":
+        return f"{head}{picture},pad={cw}:{ch}:{ox}:{oy}:color=black,setsar=1,format=yuv420p", zoom
+    bw, bh = _even(cw / 4.0), _even(ch / 4.0)  # the blurred copy is made small (fast), then scaled up
+    luma = max(1, min(14, min(bw, bh) // 2 - 1))
+    chroma = max(1, min(7, min(bw, bh) // 4 - 1))
+    return (f"{head}split=2[vffg0][vfbg0];"
+            f"[vfbg0]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},"
+            f"boxblur=luma_radius={luma}:luma_power=2:chroma_radius={chroma}:chroma_power=1,"
+            f"scale={cw}:{ch},eq=brightness=-0.06:saturation=0.85,setsar=1[vfbg];"
+            f"[vffg0]{picture}[vffg];"
+            f"[vfbg][vffg]overlay={ox}:{oy},format=yuv420p"), zoom
 
 
 def _distributed_freeze_graph(
@@ -448,6 +526,7 @@ def _distributed_freeze_graph(
     mirror_video: bool,
     zoom_factor: float,
     max_freeze_hold: float,
+    layout: dict[str, Any] | None = None,
 ) -> tuple[str, str, dict[str, float]]:
     """Build a smooth-ish hybrid graph: moderate slow motion + distributed holds.
 
@@ -486,8 +565,8 @@ def _distributed_freeze_graph(
         )
         out_labels.append(label)
     filters.append(f"{''.join(out_labels)}concat=n={chunk_count}:v=1:a=0[vhyb]")
-    visual, zoom = _visual_filters(mirror_video, zoom_factor)
-    filters.append(f"[vhyb]{','.join(visual)}[vout]")
+    visual, zoom = _visual_filters(mirror_video, zoom_factor, layout)
+    filters.append(f"[vhyb]{visual}[vout]")
     metrics = {
         "desired_factor": target_duration / source_duration,
         "applied_factor": slow_factor,
@@ -527,8 +606,10 @@ def render_video_part(
     smooth_freeze_fallback: bool = False,
     max_freeze_hold: float = 0.75,
     frame_count: int | None = None,
+    layout: dict[str, Any] | None = None,
 ) -> dict[str, float]:
     """frame_count (when given) locks the part to exactly that many 30 fps frames.
+    layout (frame_layout) is the output ratio / fill; None = the original 16:9 fill.
 
     Without it each part rounds up to the next whole frame; over ~270 parts that
     added ~6 s, so the picture drifted behind the narration and -shortest cut the end.
@@ -560,6 +641,7 @@ def render_video_part(
             mirror_video=mirror_video,
             zoom_factor=zoom_factor,
             max_freeze_hold=max_freeze_hold,
+            layout=layout,
         )
         cmd = [
             *common_input,
@@ -570,8 +652,8 @@ def render_video_part(
             "-movflags", "+faststart", str(output),
         ]
     else:
-        visual, zoom = _visual_filters(mirror_video, zoom_factor)
-        vf = sync_vf + "," + ",".join(visual)
+        visual, zoom = _visual_filters(mirror_video, zoom_factor, layout)
+        vf = sync_vf + "," + visual
         if frame_lock:
             # Clone the last frame briefly so -frames:v can always be satisfied.
             vf += ",tpad=stop_mode=clone:stop_duration=0.5"
@@ -715,8 +797,11 @@ def apply_production_overlays(
     encoder: str,
     work_dir: Path,
     log: LogFn = _noop,
+    frame_size: tuple[int, int] = (1920, 1080),
 ) -> Path:
     overlays = dict(overlays or {})
+    fw, fh = int(frame_size[0]), int(frame_size[1])
+    text_width = int(fw * 0.78)  # 1500 px on the 1920 frame
     boxes = [x for x in (overlays.get("blur_boxes") or []) if isinstance(x, dict)]
     title_text = str(overlays.get("title_text") or "").strip()
     # V19: logo overlay is explicitly opt-in. Legacy callers without the flag keep
@@ -739,6 +824,7 @@ def apply_production_overlays(
         title_file = _render_title_png(
             title_text, work_dir / "title_overlay.png",
             str(overlays.get("title_font_path") or ""), int(overlays.get("title_font_size", 54)),
+            max_width=text_width,
         )
         title_idx = input_index
         cmd += ["-i", str(title_file)]
@@ -753,6 +839,7 @@ def apply_production_overlays(
             work_dir / "extra_text_overlay.png",
             int(overlays.get("extra_text_font_size", 42)),
             0.18,
+            max_width=text_width,
         )
         extra_idx = input_index
         cmd += ["-i", str(extra_file)]
@@ -766,11 +853,11 @@ def apply_production_overlays(
     # fail only at the final production overlay pass after all parts are done.
     chroma_blur_strength = min(9, blur_strength)
     for i, b in enumerate(boxes):
-        x = int(round(_clamp01(b.get("x")) * 1920))
-        y = int(round(_clamp01(b.get("y")) * 1080))
-        w = int(round(_clamp01(b.get("w"), 0.1) * 1920))
-        h = int(round(_clamp01(b.get("h"), 0.1) * 1080))
-        w = max(8, min(w, 1920 - x)); h = max(8, min(h, 1080 - y))
+        x = min(fw - 8, int(round(_clamp01(b.get("x")) * fw)))
+        y = min(fh - 8, int(round(_clamp01(b.get("y")) * fh)))
+        w = int(round(_clamp01(b.get("w"), 0.1) * fw))
+        h = int(round(_clamp01(b.get("h"), 0.1) * fh))
+        w = max(8, min(w, fw - x)); h = max(8, min(h, fh - y))
         base = f"bbase{i}"; crop = f"bcrop{i}"; blur = f"bblur{i}"; out = f"bv{i}"
         graph.append(f"{current}split=2[{base}][{crop}]")
         graph.append(
@@ -795,7 +882,7 @@ def apply_production_overlays(
         ly = _clamp01(pos[1] if len(pos) > 1 else 0.06, 0.06)
         lw = max(0.04, min(0.40, float(overlays.get("logo_width_fraction", 0.16))))
         lo = max(0.10, min(1.00, float(overlays.get("logo_opacity", 0.65))))
-        graph.append(f"[{logo_idx}:v]scale={max(24, int(round(1920*lw)))}:-1[lg0]")
+        graph.append(f"[{logo_idx}:v]scale={max(24, int(round(fw * lw)))}:-1[lg0]")
         if lo < 0.999:
             graph.append(f"[lg0]format=rgba,colorchannelmixer=aa={lo:.3f}[lg]")
         else:
@@ -887,6 +974,8 @@ class EdgeSmartSync:
         smooth_freeze_fallback: bool = False,
         max_freeze_hold: float = 0.75,
         render_final_video: bool = True,
+        output_ratio: str = "16:9",
+        frame_fill: str = "blur",
         overlays: dict[str, Any] | None = None,
         log: LogFn = _noop,
         progress: Callable[[int, int, str], None] | None = None,
@@ -906,6 +995,8 @@ class EdgeSmartSync:
         self.max_video_slow = max(1.0, float(max_video_slow))
         self.mirror_video = bool(mirror_video)
         self.zoom_factor = max(1.0, min(float(zoom_factor), 1.25))
+        self.output_ratio = output_ratio if output_ratio in OUTPUT_RATIOS else "16:9"
+        self.frame_fill = frame_fill if frame_fill in FRAME_FILLS else "blur"
         self.smooth_freeze_fallback = bool(smooth_freeze_fallback)
         self.max_freeze_hold = max(0.15, min(float(max_freeze_hold), 1.50))
         self.render_final_video = bool(render_final_video)
@@ -972,7 +1063,14 @@ class EdgeSmartSync:
         self.log(f"🧩 Timestamp segments: {len(segments)}")
         self.log(f"🎙️ TTS: Edge TTS | Voice: {self.voice}")
         self.log(f"🎞️ Smart Sync: Exact Recap timing — distributed freeze fallback={'ON' if self.smooth_freeze_fallback else 'OFF'}")
-        self.log(f"🪞 Mirror={'ON' if self.mirror_video else 'OFF'} | 16:9 Fill | Zoom={self.zoom_factor:.3f}x")
+        try:
+            source_w, source_h = probe_video_size(self.ffprobe, source)
+        except Exception as exc:  # only the frame shape depends on it: Original falls back to 16:9
+            source_w, source_h = 0, 0
+            self.log(f"⚠️ Video size not readable ({exc}); Original ratio falls back to 16:9")
+        layout = frame_layout(self.output_ratio, self.frame_fill, source_w, source_h)
+        self.log(f"🪞 Mirror={'ON' if self.mirror_video else 'OFF'} | Ratio={layout['ratio']} "
+                 f"{layout['cw']}x{layout['ch']} ({layout['fill']}) from {source_w}x{source_h} | Zoom={self.zoom_factor:.3f}x")
 
         engine = EdgeTTSEngine(
             ffmpeg=self.ffmpeg,
@@ -1123,6 +1221,7 @@ class EdgeSmartSync:
                 "max_speed": self.max_video_speed, "max_slow": self.max_video_slow,
                 "smooth_freeze": self.smooth_freeze_fallback, "max_freeze_hold": self.max_freeze_hold,
                 "mirror": self.mirror_video, "zoom": self.zoom_factor, "encoder": encoder,
+                "frame": [layout["ratio"], layout["fill"], layout["cw"], layout["ch"]],
             }, sort_keys=True).encode()
             vfp = hashlib.sha256(vfp_raw).hexdigest()
             rec = checkpoint["video"].get(base, {})
@@ -1138,7 +1237,7 @@ class EdgeSmartSync:
                         self.mirror_video, self.zoom_factor,
                         self.max_video_speed, self.max_video_slow,
                         self.smooth_freeze_fallback, self.max_freeze_hold,
-                        frame_count=frame_count,
+                        frame_count=frame_count, layout=layout,
                     )
                 except Exception:
                     # Only on the first non-reused part, allow global NVENC -> CPU fallback.
@@ -1154,7 +1253,7 @@ class EdgeSmartSync:
                             self.mirror_video, self.zoom_factor,
                             self.max_video_speed, self.max_video_slow,
                             self.smooth_freeze_fallback, self.max_freeze_hold,
-                            frame_count=frame_count,
+                            frame_count=frame_count, layout=layout,
                         )
                         # Recompute fingerprint with CPU encoder.
                         vfp_raw = json.dumps({
@@ -1166,6 +1265,7 @@ class EdgeSmartSync:
                             "max_speed": self.max_video_speed, "max_slow": self.max_video_slow,
                             "smooth_freeze": self.smooth_freeze_fallback, "max_freeze_hold": self.max_freeze_hold,
                             "mirror": self.mirror_video, "zoom": self.zoom_factor, "encoder": encoder,
+                            "frame": [layout["ratio"], layout["fill"], layout["cw"], layout["ch"]],
                         }, sort_keys=True).encode()
                         vfp = hashlib.sha256(vfp_raw).hexdigest()
                     else:
@@ -1196,7 +1296,7 @@ class EdgeSmartSync:
             self.log("🎨 Production overlay pass — Blur / Title PNG / Logo...")
             video_for_mux = apply_production_overlays(
                 self.ffmpeg, paths.synced_video_noaudio, paths.decorated_video_noaudio,
-                self.overlays, encoder, paths.work, self.log,
+                self.overlays, encoder, paths.work, self.log, frame_size=(layout["cw"], layout["ch"]),
             )
         self.log("🎧 Edge TTS audio mux...")
         volume_percent = int(getattr(self, "voice_volume_percent", 100) or 100)

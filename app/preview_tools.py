@@ -37,23 +37,21 @@ def extract_preview_frame(
     output: str,
     width: int = 720,
     height: int = 405,
+    ratio: str = "16:9",
+    fill: str = "blur",
+    source_size: tuple[int, int] = (0, 0),
 ) -> str:
-    zoom = max(1.0, min(float(zoom), 1.25))
-    sw = max(width, int(round(width * zoom / 2.0) * 2))
-    sh = max(height, int(round(height * zoom / 2.0) * 2))
-    filters = []
-    if mirror:
-        filters.append('hflip')
-    filters.extend([
-        f'scale={sw}:{sh}:force_original_aspect_ratio=increase',
-        f'crop={width}:{height}',
-    ])
+    """One frame drawn exactly like the render (same flip/zoom/ratio/fill filters), at preview size."""
+    from core import _visual_filters, frame_layout
+
+    layout = frame_layout(ratio, fill, source_size[0], source_size[1], canvas=(width, height))
+    vf, _zoom = _visual_filters(mirror, zoom, layout)
     out = Path(output)
     out.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         ffmpeg, '-y', '-hide_banner', '-loglevel', 'error',
         '-ss', f'{max(0.0, float(timestamp)):.3f}', '-i', source,
-        '-frames:v', '1', '-vf', ','.join(filters), str(out),
+        '-frames:v', '1', '-vf', vf, str(out),
     ]
     p = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if p.returncode != 0 or not out.is_file():

@@ -16,7 +16,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from core import normalize_segments
+from core import FRAME_FILLS, OUTPUT_RATIOS, normalize_segments, output_canvas, probe_video_size
 from preview_tools import probe_duration as preview_probe_duration, extract_preview_frame, scale_logo_preview
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -41,6 +41,7 @@ PREVIEW_W = 640
 PREVIEW_H = 360
 
 EDGE_VOICES = ("my-MM-ThihaNeural", "my-MM-NilarNeural")
+FILL_LABELS = {"blur": "Blur background", "black": "Black bars", "crop": "Crop to fill"}
 
 
 def _tool_path(cfg: dict, name: str) -> str:
@@ -149,6 +150,10 @@ class App(tk.Tk):
         self.voice_volume = tk.IntVar(value=int(self.cfg.get("voice_volume_percent", 100) or 100))
         self.short_pauses = tk.BooleanVar(value=bool(self.cfg.get("short_pauses", True)))
         self.zoom_factor = tk.DoubleVar(value=float(self.cfg.get("zoom_factor", 1.05)))
+        saved_ratio = str(self.cfg.get("output_ratio") or "16:9")
+        self.output_ratio = tk.StringVar(value=saved_ratio if saved_ratio in OUTPUT_RATIOS else "16:9")
+        self.frame_fill = tk.StringVar(value=FILL_LABELS.get(str(self.cfg.get("frame_fill") or "blur"), FILL_LABELS["blur"]))
+        self.source_size = (0, 0)
         self.smooth_freeze = tk.BooleanVar(value=bool(self.cfg.get("smooth_freeze_fallback", False)))
         self.max_freeze_hold = tk.StringVar(value=str(self.cfg.get("max_freeze_hold", 0.75)))
         self.render_final = tk.BooleanVar(value=bool(self.cfg.get("render_final_video", True)))
@@ -396,6 +401,18 @@ class App(tk.Tk):
         self._voice_volume_changed(self.voice_volume.get())
         ttk.Checkbutton(self.zoom_slider.master, text="Short pauses (~0.25 s between lines)",
                         variable=self.short_pauses).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        frame_row = ttk.Frame(self.zoom_slider.master)
+        frame_row.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        frame_row.columnconfigure(3, weight=1)
+        ttk.Label(frame_row, text="Ratio", width=9).grid(row=0, column=0, sticky="w")
+        ratio_combo = ttk.Combobox(frame_row, textvariable=self.output_ratio, values=OUTPUT_RATIOS, state="readonly", width=9)
+        ratio_combo.grid(row=0, column=1, sticky="w")
+        ttk.Label(frame_row, text="Fill").grid(row=0, column=2, sticky="e", padx=(10, 6))
+        fill_combo = ttk.Combobox(frame_row, textvariable=self.frame_fill, values=tuple(FILL_LABELS.values()),
+                                  state="readonly", width=15)
+        fill_combo.grid(row=0, column=3, sticky="ew")
+        for combo in (ratio_combo, fill_combo):
+            combo.bind("<<ComboboxSelected>>", lambda _e: self._frame_changed())
 
         section(3, "Blur Watermark Area")
         blur_row = ttk.Frame(tools)
@@ -672,15 +689,27 @@ class App(tk.Tk):
         self.selected_blur = None
         self._redraw_editor_items()
 
+    def _fill_code(self) -> str:
+        return next((code for code, label in FILL_LABELS.items() if label == self.frame_fill.get()), "blur")
+
+    def _output_canvas(self) -> tuple[int, int]:
+        """Size of the final frame for the chosen Ratio (Original follows the loaded video)."""
+        return output_canvas(self.output_ratio.get(), *self.source_size)
+
+    def _frame_changed(self) -> None:
+        self._redraw_editor_items()
+        self._refresh_preview()
+
     def _preview_bounds(self) -> tuple[int, int, int, int]:
-        """Largest 16:9 frame that fits the canvas: (x offset, y offset, width, height).
+        """Largest output-shaped frame (Ratio) that fits the canvas: (x offset, y offset, width, height).
 
         Overlay positions are stored as 0..1 fractions of the output frame, so the preview
         can be any size without moving where Title/Logo/Blur land in the render.
         """
         cw, ch = getattr(self, "_preview_canvas_size", (PREVIEW_W, PREVIEW_H))
-        scale = min(cw / 16.0, ch / 9.0)
-        width, height = max(16, int(16 * scale)), max(9, int(9 * scale))
+        fw, fh = self._output_canvas() if hasattr(self, "output_ratio") else (1920, 1080)
+        scale = min(cw / fw, ch / fh)
+        width, height = max(16, int(fw * scale)) // 2 * 2, max(16, int(fh * scale)) // 2 * 2
         return (cw - width) // 2, (ch - height) // 2, width, height
 
     def _preview_xy(self, event) -> tuple[float, float]:
@@ -699,6 +728,7 @@ class App(tk.Tk):
             extract_preview_frame(
                 ffmpeg, src, float(self.preview_time.get()), float(self.zoom_factor.get()),
                 bool(self.mirror_video.get()), str(out), width, height,
+                ratio=self.output_ratio.get(), fill=self._fill_code(), source_size=self.source_size,
             )
             self._preview_photo = tk.PhotoImage(file=str(out))
             self.preview_canvas.delete("frame")
@@ -729,7 +759,7 @@ class App(tk.Tk):
         if txt:
             px = ox + float(self.title_pos[0]) * pw
             py = oy + float(self.title_pos[1]) * ph
-            fs = max(10, int(self.title_size.get() * pw / 1920))
+            fs = max(10, int(self.title_size.get() * pw / self._output_canvas()[0]))
             c.create_text(px+2, py+2, text=txt, fill="#000000", anchor="center", font=("Myanmar Text", fs, "bold"), width=int(pw*0.82), tags=("editor", "title"))
             c.create_text(px, py, text=txt, fill="#ffffff", anchor="center", font=("Myanmar Text", fs, "bold"), width=int(pw*0.82), tags=("editor", "title"))
 
@@ -737,7 +767,7 @@ class App(tk.Tk):
         if extra_txt:
             ex = ox + float(self.extra_text_pos[0]) * pw
             ey = oy + float(self.extra_text_pos[1]) * ph
-            efs = max(9, int(self.extra_text_size.get() * pw / 1920))
+            efs = max(9, int(self.extra_text_size.get() * pw / self._output_canvas()[0]))
             opacity = max(0.10, min(1.00, float(self.extra_text_opacity.get())))
             shade = max(140, min(255, int(255 * opacity)))
             fill = f"#{shade:02x}{shade:02x}{shade:02x}"
@@ -958,6 +988,7 @@ class App(tk.Tk):
             try:
                 ffprobe = _tool_path(self.cfg, "ffprobe")
                 self.preview_duration = preview_probe_duration(ffprobe, p)
+                self.source_size = probe_video_size(ffprobe, p)
                 self.preview_slider.configure(to=max(0.1, self.preview_duration))
                 t = min(max(0.0, float(self.cfg.get("preview_seek_seconds", 1.0))), max(0.0, self.preview_duration-0.05))
                 self.preview_time.set(t)
@@ -976,6 +1007,8 @@ class App(tk.Tk):
         self.cfg["mirror_video"] = bool(settings["mirror_video"])
         self.cfg["voice_volume_percent"] = int(settings.get("voice_volume_percent", 100))
         self.cfg["short_pauses"] = bool(settings.get("short_pauses", True))
+        self.cfg["output_ratio"] = settings["output_ratio"]
+        self.cfg["frame_fill"] = settings["frame_fill"]
         self.cfg["logo_enabled"] = bool(settings["overlays"].get("logo_enabled", False))
         self.cfg["logo_path"] = settings["overlays"].get("logo_path", "") if self.cfg["logo_enabled"] else ""
         self.cfg["logo_width_fraction"] = settings["overlays"].get("logo_width_fraction", 0.16)
@@ -1052,6 +1085,8 @@ class App(tk.Tk):
             "mirror_video": bool(self.mirror_video.get()),
             "voice_volume_percent": int(self.voice_volume.get()),
             "short_pauses": bool(self.short_pauses.get()),
+            "output_ratio": self.output_ratio.get() if self.output_ratio.get() in OUTPUT_RATIOS else "16:9",
+            "frame_fill": self._fill_code() if self._fill_code() in FRAME_FILLS else "blur",
             "zoom_factor": zoom,
             "render_final_video": True,
             "reuse_transcript_and_plan": bool(self.cfg.get("reuse_transcript_and_plan", self.cfg.get("reuse_whisper_and_plan", True))),
@@ -1306,6 +1341,8 @@ class App(tk.Tk):
             "overlays": settings["overlays"],
             "voice_volume_percent": settings["voice_volume_percent"],
             "short_pauses": bool(settings.get("short_pauses", True)),
+            "output_ratio": settings.get("output_ratio", "16:9"),
+            "frame_fill": settings.get("frame_fill", "blur"),
             "stop_file": str(stop_file),
         })
         result = self._run_child("render_worker.py", render_cfg, "STEP 2 — Edge TTS + Smart Sync").get("result") or {}

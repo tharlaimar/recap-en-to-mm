@@ -50,6 +50,8 @@ def main() -> int:
             smooth_freeze_fallback=bool(cfg.get("smooth_freeze_fallback", False)),
             max_freeze_hold=float(cfg.get("max_freeze_hold", 0.75)),
             render_final_video=bool(cfg.get("render_final_video", True)),
+            output_ratio=str(cfg.get("output_ratio", "16:9")),
+            frame_fill=str(cfg.get("frame_fill", "blur")),
             overlays=cfg.get("overlays") or {},
             log=log,
             progress=progress,

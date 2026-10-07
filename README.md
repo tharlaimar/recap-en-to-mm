@@ -21,7 +21,7 @@ Narrator only · Whisper + Gemini · Microsoft Edge TTS (Myanmar) · Smart Sync
    - မြန်မာစာလုံးထဲ တခြားဘာသာ စာလုံး ညှပ်ဝင်လာရင် (ဥပမာ "ဧည့်ခန်း" နေရာမှာ "မისခန်း") Gemini ကို ပြန်မေးတယ်။
 5. **အသံထုတ်** — Edge TTS မြန်မာအသံ (Thiha ယောက်ျားသံ / Nilar မိန်းမသံ) နဲ့ ထုတ်တယ်။ "Short pauses" ဖွင့်ထားရင် Edge ထည့်တတ်တဲ့ အသံတိတ်ကို ဖြတ်လို့ စာကြောင်းကြားမှာ ~၀.၂၅ စက္ကန့်ပဲ နားတယ်။
 6. **Smart Sync** — မြန်မာအသံက အချိန်ကို ဦးဆောင်ပြီး ရုပ်က လိုက်ညှိတယ်။ အသေးစိတ်ကို [Smart Sync ဘယ်လိုအလုပ်လုပ်လဲ](#smart-sync-ဘယ်လိုအလုပ်လုပ်လဲ) မှာ ကြည့်ပါ။
-7. **ဖြည့်စွက်** — Blur box (မူရင်း watermark/စာတန်းဖုံးဖို့)၊ Title၊ Logo၊ Extra text၊ Zoom၊ Flip တွေကို preview ပေါ်မှာ နေရာချပြီး ထည့်လို့ရတယ်။
+7. **ဖြည့်စွက်** — Blur box (မူရင်း watermark/စာတန်းဖုံးဖို့)၊ Title၊ Logo၊ Extra text၊ Zoom၊ Flip တွေကို preview ပေါ်မှာ နေရာချပြီး ထည့်လို့ရတယ်။ Video အချိုး (**16:9 / 9:16 / 1:1 / Original**) ကိုလည်း ရွေးလို့ရတယ်။
 
 ထွက်လာတဲ့ video မှာ **မြန်မာအသံပဲ** ပါတယ်။ မူရင်း English အသံနဲ့ နောက်ခံသီချင်း မပါဘူး။
 
@@ -65,7 +65,7 @@ Narrator only · Whisper + Gemini · Microsoft Edge TTS (Myanmar) · Smart Sync
 | အပေါ် | **Source Video → Browse** နဲ့ English video ကို ရွေးပါ။ **Folder** နှိပ်ရင် folder ထဲက video တွေကို တစ်ခုပြီးတစ်ခု လုပ်ပါတယ် (ပြီးပြီးသား video တွေကို ကျော်ပါတယ်)။ **Gemini .env** မှာ `.env` ဖိုင်ကို ရွေးပါ (default က ဒီ folder ထဲက `.env`)။ |
 | ဘယ်ဘက် | **Edge TTS Voice** (`my-MM-ThihaNeural` / `my-MM-NilarNeural`) နဲ့ **Edge TTS Speed** (−50% … +100%) ကို ရွေးပါ။ အောက်က **Run Logs** မှာ အလုပ်လုပ်နေတာတွေ ပြပါတယ်။ |
 | အလယ် | **Preview** — slider နဲ့ `◀ 5s` / `5s ▶` နဲ့ ကြည့်ချင်တဲ့ အချိန်ကို ရွှေ့ပြီး **Refresh Frame** နှိပ်ပါ။ Title၊ Logo၊ Extra text ကို ဆွဲရွှေ့ပြီး နေရာချလို့ရပါတယ်။ Blur box ကို ဆွဲလို့ရပါတယ်။ |
-| ညာဘက် | **Production Tools** — Zoom (1.00–1.25×)၊ Flip (ဘယ်ညာ ပြောင်းပြန်)၊ Voice vol (50–300%)၊ Short pauses၊ **+ Draw Blur Box** / Delete Selected၊ Title (စာ၊ အရွယ်)၊ Logo (ဖိုင်၊ အရွယ်၊ အလင်းဖောက်မှု)၊ Extra Text Box။ |
+| ညာဘက် | **Production Tools** — Zoom (1.00–1.25×)၊ Flip (ဘယ်ညာ ပြောင်းပြန်)၊ Voice vol (50–300%)၊ Short pauses၊ **Ratio** (16:9 / 9:16 / 1:1 / Original) နဲ့ **Fill** (Blur background / Black bars / Crop to fill)၊ **+ Draw Blur Box** / Delete Selected၊ Title (စာ၊ အရွယ်)၊ Logo (ဖိုင်၊ အရွယ်၊ အလင်းဖောက်မှု)၊ Extra Text Box။ |
 | အောက်ခြေ | **START / RESUME** — စတယ် (ရပ်ထားတာဆိုရင် ဆက်လုပ်တယ်)။ **STOP SAFELY** — အခု လုပ်နေတဲ့ အဆင့်ပြီးမှ ရပ်ပြီး လုပ်ပြီးသမျှ သိမ်းထားတယ်။ **Open Job Folder** — ထွက်လာတဲ့ ဖိုင်တွေ ဖွင့်ကြည့်ဖို့။ |
 
 **ထွက်လာတဲ့ ဖိုင်:** `jobs\<video နာမည်>_<code>\edge_tts_smart_sync\final_edge_tts_smart_sync.mp4`
@@ -82,7 +82,21 @@ Job folder ထဲမှာ ကြည့်လို့ရတဲ့ ဖိုင�
 - **အရှည်ကို အသံနဲ့ ညှိ** — ရုပ်တစ်ပိုင်းစီကို မြန်မာအသံ အရှည်အတိုင်း ဖြစ်အောင် နှေးတာ / မြန်တာ (`setpts`) လုပ်တယ်။
 - **အမြန်ဆုံး ၁.၂၅ ဆ** — ရုပ်ကို ၁.၂၅ ဆထက် ပိုမမြန်စေဘူး (`max_video_speed`)။ အသံက ဒီထက်တိုနေသေးရင် အဲ့အပိုင်းရဲ့ နောက်ဆုံးက ရုပ်နည်းနည်းကို ဖြတ်တယ်။ အသံက ပိုရှည်ရင် ရုပ်ကို နှေးပေးတယ်။
 - **Frame ကို တွဲတွက်** — အပိုင်းတိုင်းရဲ့ frame အရေအတွက်ကို အသံရဲ့ စုစုပေါင်း အချိန်နဲ့ တွက်တယ် (30 fps)။ အပိုင်း ရာနဲ့ချီ ရှိနေတောင် ရုပ်နဲ့ အသံ frame တစ်ဝက်ထက် ပိုမကွာဘူး။ အဆုံးမှာ log က `SYNC OK: picture=… narration=… diff=…` လို့ ပြပါတယ်။
-- **ပုံစံ** — 16:9 (1920×1080) ဖြည့်ပြီး Zoom / Flip ထည့်တယ်။ NVIDIA ရှိရင် NVENC၊ မရှိရင် libx264 နဲ့ ထုတ်တယ်။
+- **ပုံစံ (Ratio / Fill)** — NVIDIA ရှိရင် NVENC၊ မရှိရင် libx264 နဲ့ ထုတ်တယ်။
+
+  | Ratio | Video အရွယ် |
+  |---|---|
+  | 16:9 (default) | 1920×1080 |
+  | 9:16 (TikTok / Reels / Shorts) | 1080×1920 |
+  | 1:1 | 1080×1080 |
+  | Original | မူရင်း video ရဲ့ ပုံစံအတိုင်း (အရှည်ဘက် အများဆုံး 1920) |
+
+  မူရင်းနဲ့ ပုံစံမတူရင် (ဥပမာ 16:9 video ကို 9:16 လုပ်ရင်) **Fill** နဲ့ ရွေးပါ:
+  - **Blur background** — ပုံတစ်ခုလုံး မြင်ရပြီး ဘေးကွက်လပ်မှာ အဲ့ပုံကိုပဲ ဝါးပြီး ဖြည့်တယ်။
+  - **Black bars** — ဘေးကွက်လပ်ကို အမည်းနဲ့ ဖြည့်တယ်။
+  - **Crop to fill** — ပုံကို ချဲ့ပြီး frame ပြည့်အောင် လုပ်တယ်။ ဘေးက ပိုတဲ့အပိုင်းကို ဖြတ်တယ်။
+
+  Zoom / Flip နဲ့ Title၊ Logo၊ Blur box တွေက ရွေးထားတဲ့ Ratio အတိုင်း ထွက်ပြီး preview မှာလည်း ဒီအတိုင်း ပြတယ်။
 
 ## Gemini key နဲ့ ကန့်သတ်ချက်
 
@@ -182,7 +196,9 @@ on Windows.
    length of its Myanmar voice; it never plays faster than 1.25× (`max_video_speed`), and when the
    voice is shorter still the end of that window is cut. Frame counts are cumulative at 30 fps, so
    even hundreds of parts stay within half a frame of the voice (`SYNC OK … diff=…` in the log).
-   16:9 fill (1920×1080) with optional zoom/flip; NVENC or libx264.
+   Output ratio **16:9** (1920×1080), **9:16** (1080×1920), **1:1** (1080×1080) or **Original**
+   (the source shape, long side at most 1920); when the source has another shape, **Fill** decides:
+   Blur background, Black bars or Crop to fill. Optional zoom/flip; NVENC or libx264.
 7. **Production tools** — blur boxes, title, logo and an extra text box placed on the preview.
 
 The output has only the Myanmar voice (no original audio or music).
@@ -212,8 +228,8 @@ Double-click **`RUN.bat`**:
 - **Source Video** → Browse (or **Folder** for a batch; finished videos are skipped).
 - **Edge TTS Voice / Speed** on the left.
 - **Preview** in the middle: seek, Refresh Frame, drag the title/logo/text, draw blur boxes.
-- **Production Tools** on the right: Zoom, Flip, Voice vol, Short pauses, blur, title, logo,
-  extra text.
+- **Production Tools** on the right: Zoom, Flip, Voice vol, Short pauses, Ratio + Fill, blur,
+  title, logo, extra text.
 - **START / RESUME** — starts or continues; **STOP SAFELY** — stops at a safe point and keeps
   everything; **Open Job Folder**.
 
